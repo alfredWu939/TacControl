@@ -107,6 +107,12 @@ class ShearGraspController:
         self._contact_threshold = float(self.config.finger_contact_force_threshold)
         self._normal_setpoint = float(self.config.normal_force_setpoint)
         self._contact_loss_timeout = float(self.config.contact_loss_timeout)
+        idle_source = (
+            self.config.pregrasp_joint_targets
+            or self._initial_targets
+            or np.zeros(self._joint_count)
+        )
+        self._idle_targets = np.asarray(idle_source, dtype=float)
 
     # ------------------------------------------------------------------ helpers
     def reset(self) -> None:
@@ -207,6 +213,7 @@ class ShearGraspController:
         joint_delta = np.zeros(self._joint_count, dtype=float)
         finger_normal_sums: Dict[str, float] = {}
         finger_entries: Dict[str, List[Dict[str, object]]] = {}
+        finger_has_contact: Dict[str, bool] = {cfg.name: False for cfg in self.config.finger_configs}
 
         for finger_cfg in self.config.finger_configs:
             entries: List[Dict[str, object]] = []
@@ -232,24 +239,13 @@ class ShearGraspController:
                 features.shear_rate[:2] *= gravity_scale
                 features.shear_command[:] = 0.0
 
-                runtime.last_features = features
-                module_features[module_cfg.name] = features
-
                 if features.normal_force < self.config.contact_force_threshold:
-                    runtime.no_contact_time += dt
-                else:
-                    runtime.no_contact_time = 1.0
-
-                lost_contact = (
-                    features.normal_force <= 1e-6
-                    and runtime.no_contact_time >= self._contact_loss_timeout
-                )
-                if lost_contact:
                     runtime.pid.reset()
                     runtime.reference_position = None
                     runtime.velocity[:] = 0.0
                     continue
-
+                finger_has_contact[finger_cfg.name] = True
+                runtime.no_contact_time = 0.0
                 runtime.last_features = features
                 module_features[module_cfg.name] = features
 
@@ -341,6 +337,17 @@ class ShearGraspController:
 
         joint_delta = np.clip(joint_delta, -self._joint_step_limit, self._joint_step_limit)
         q_cmd = joint_positions + joint_delta
+
+        for finger_cfg in self.config.finger_configs:
+            if finger_has_contact.get(finger_cfg.name, False):
+                continue
+            for joint_name in finger_cfg.joint_names:
+                idx = self._joint_name_to_index[joint_name]
+                target = self._idle_targets[idx]
+                error = target - joint_positions[idx]
+                delta = np.clip(error, -self._joint_step_limit, self._joint_step_limit)
+                q_cmd[idx] = joint_positions[idx] + delta
+
         self._send_positions(q_cmd)
         return module_features
 
