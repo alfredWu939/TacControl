@@ -30,6 +30,7 @@ class ModuleRuntime:
     last_features: Optional[ModuleShearFeatures] = None
     reference_position: Optional[np.ndarray] = None
     velocity: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
+    no_contact_time: float = 0.0
 
 
 class ShearGraspController:
@@ -105,6 +106,7 @@ class ShearGraspController:
         self._pregrasp_kp = float(self.config.pregrasp_kp)
         self._contact_threshold = float(self.config.finger_contact_force_threshold)
         self._normal_setpoint = float(self.config.normal_force_setpoint)
+        self._contact_loss_timeout = float(self.config.contact_loss_timeout)
 
     # ------------------------------------------------------------------ helpers
     def reset(self) -> None:
@@ -234,10 +236,22 @@ class ShearGraspController:
                 module_features[module_cfg.name] = features
 
                 if features.normal_force < self.config.contact_force_threshold:
+                    runtime.no_contact_time += dt
+                else:
+                    runtime.no_contact_time = 1.0
+
+                lost_contact = (
+                    features.normal_force <= 1e-6
+                    and runtime.no_contact_time >= self._contact_loss_timeout
+                )
+                if lost_contact:
                     runtime.pid.reset()
                     runtime.reference_position = None
                     runtime.velocity[:] = 0.0
                     continue
+
+                runtime.last_features = features
+                module_features[module_cfg.name] = features
 
                 shear_error = -features.shear_rate[:2]
                 shear_cmd_xy = runtime.pid.update(shear_error, dt)

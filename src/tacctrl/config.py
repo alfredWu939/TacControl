@@ -10,9 +10,10 @@ wiring differs.
 
 from __future__ import annotations
 
+import math
+import os
 from dataclasses import dataclass
 from typing import Dict, List, Sequence
-import math
 
 @dataclass(frozen=True)
 class ModuleConfig:
@@ -82,11 +83,12 @@ class ShearControllerConfig:
     initial_joint_targets: Sequence[float] = ()
     tactile_count_to_newton: float = 0.1
     normal_force_setpoint: float = 1.0
+    contact_loss_timeout: float = 0.3
 
 
 # --------------------------------------------------------------------------- defaults
 
-DEFAULT_JOINT_ORDER: List[str] = [
+RIGHT_JOINT_ORDER: List[str] = [
     # index finger
     "right_index_joint_0",
     "right_index_joint_1",
@@ -109,84 +111,111 @@ DEFAULT_JOINT_ORDER: List[str] = [
     "right_thumb_joint_3",
 ]
 
-DEFAULT_MODULES: List[ModuleConfig] = [
-    ModuleConfig("index_pad_proximal", "right_index_tactile_link_0", "index", tactile_index=0, weight=1.0),
-    ModuleConfig("index_pad_middle", "right_index_tactile_link_1", "index", tactile_index=1, weight=1.0),
-    ModuleConfig("index_pad_distal", "right_index_tactile_link_2", "index", tactile_index=2, weight=1.0),
-    ModuleConfig("middle_pad_proximal", "right_middle_tactile_link_0", "middle", tactile_index=3, weight=1.0),
-    ModuleConfig("middle_pad_middle", "right_middle_tactile_link_1", "middle", tactile_index=4, weight=1.0),
-    ModuleConfig("middle_pad_distal", "right_middle_tactile_link_2", "middle", tactile_index=5, weight=1.0),
-    ModuleConfig("ring_pad_proximal", "right_ring_tactile_link_0", "ring", tactile_index=6, weight=1.0),
-    ModuleConfig("ring_pad_middle", "right_ring_tactile_link_1", "ring", tactile_index=7, weight=1.0),
-    ModuleConfig("ring_pad_distal", "right_ring_tactile_link_2", "ring", tactile_index=8, weight=1.0),
-    ModuleConfig("thumb_pad_proximal", "right_thumb_tactile_link_0", "thumb", tactile_index=9, weight=1.0),
-    ModuleConfig("thumb_pad_distal", "right_thumb_tactile_link_1", "thumb", tactile_index=10, weight=1.0),
+LEFT_JOINT_ORDER: List[str] = [
+    "left_index_joint_0",
+    "left_index_joint_1",
+    "left_index_joint_2",
+    "left_index_joint_3",
+    "left_middle_joint_0",
+    "left_middle_joint_1",
+    "left_middle_joint_2",
+    "left_middle_joint_3",
+    "left_ring_joint_0",
+    "left_ring_joint_1",
+    "left_ring_joint_2",
+    "left_ring_joint_3",
+    "left_thumb_joint_0",
+    "left_thumb_joint_1",
+    "left_thumb_joint_2",
+    "left_thumb_joint_3",
 ]
 
-DEFAULT_FINGER_CONFIGS: List[FingerConfig] = [
-    FingerConfig(
-        name="index",
-        joint_names=DEFAULT_JOINT_ORDER[0:4],
-        modules=[m for m in DEFAULT_MODULES if m.finger == "index"],
-        normal_force_max=7.5,
-        friction_mu_min=0.35,
-        normal_force_gain=0.6,
-    ),
-    FingerConfig(
-        name="middle",
-        joint_names=DEFAULT_JOINT_ORDER[4:8],
-        modules=[m for m in DEFAULT_MODULES if m.finger == "middle"],
-        normal_force_max=7.5,
-        friction_mu_min=0.35,
-        normal_force_gain=0.6,
-    ),
-    FingerConfig(
-        name="ring",
-        joint_names=DEFAULT_JOINT_ORDER[8:12],
-        modules=[m for m in DEFAULT_MODULES if m.finger == "ring"],
-        normal_force_max=6.0,
-        friction_mu_min=0.35,
-        normal_force_gain=0.6,
-    ),
-    FingerConfig(
-        name="thumb",
-        joint_names=DEFAULT_JOINT_ORDER[12:16],
-        modules=[m for m in DEFAULT_MODULES if m.finger == "thumb"],
-        normal_force_max=8.5,
-        friction_mu_min=0.4,
-        normal_force_gain=0.7,
-    ),
+RIGHT_MODULES: List[ModuleConfig] = [
+    ModuleConfig("right_index_pad_proximal", "right_index_tactile_link_0", "index", tactile_index=0, weight=1.0),
+    ModuleConfig("right_index_pad_middle", "right_index_tactile_link_1", "index", tactile_index=1, weight=1.0),
+    ModuleConfig("right_index_pad_distal", "right_index_tactile_link_2", "index", tactile_index=2, weight=1.0),
+    ModuleConfig("right_middle_pad_proximal", "right_middle_tactile_link_0", "middle", tactile_index=3, weight=1.0),
+    ModuleConfig("right_middle_pad_middle", "right_middle_tactile_link_1", "middle", tactile_index=4, weight=1.0),
+    ModuleConfig("right_middle_pad_distal", "right_middle_tactile_link_2", "middle", tactile_index=5, weight=1.0),
+    ModuleConfig("right_ring_pad_proximal", "right_ring_tactile_link_0", "ring", tactile_index=6, weight=1.0),
+    ModuleConfig("right_ring_pad_middle", "right_ring_tactile_link_1", "ring", tactile_index=7, weight=1.0),
+    ModuleConfig("right_ring_pad_distal", "right_ring_tactile_link_2", "ring", tactile_index=8, weight=1.0),
+    ModuleConfig("right_thumb_pad_proximal", "right_thumb_tactile_link_0", "thumb", tactile_index=9, weight=1.0),
+    ModuleConfig("right_thumb_pad_distal", "right_thumb_tactile_link_1", "thumb", tactile_index=10, weight=1.0),
 ]
+
+LEFT_MODULES: List[ModuleConfig] = [
+    ModuleConfig("left_index_pad_proximal", "left_index_tactile_link_0", "index", tactile_index=0, weight=1.0),
+    ModuleConfig("left_index_pad_middle", "left_index_tactile_link_1", "index", tactile_index=1, weight=1.0),
+    ModuleConfig("left_index_pad_distal", "left_index_tactile_link_2", "index", tactile_index=2, weight=1.0),
+    ModuleConfig("left_middle_pad_proximal", "left_middle_tactile_link_0", "middle", tactile_index=3, weight=1.0),
+    ModuleConfig("left_middle_pad_middle", "left_middle_tactile_link_1", "middle", tactile_index=4, weight=1.0),
+    ModuleConfig("left_middle_pad_distal", "left_middle_tactile_link_2", "middle", tactile_index=5, weight=1.0),
+    ModuleConfig("left_ring_pad_proximal", "left_ring_tactile_link_0", "ring", tactile_index=6, weight=1.0),
+    ModuleConfig("left_ring_pad_middle", "left_ring_tactile_link_1", "ring", tactile_index=7, weight=1.0),
+    ModuleConfig("left_ring_pad_distal", "left_ring_tactile_link_2", "ring", tactile_index=8, weight=1.0),
+    ModuleConfig("left_thumb_pad_proximal", "left_thumb_tactile_link_0", "thumb", tactile_index=9, weight=1.0),
+    ModuleConfig("left_thumb_pad_distal", "left_thumb_tactile_link_1", "thumb", tactile_index=10, weight=1.0),
+]
+
+def _build_finger_configs(joint_order: Sequence[str], modules: Sequence[ModuleConfig]) -> List[FingerConfig]:
+    return [
+        FingerConfig(
+            name="index",
+            joint_names=joint_order[0:4],
+            modules=[m for m in modules if m.finger == "index"],
+            normal_force_max=7.5,
+            friction_mu_min=0.35,
+            normal_force_gain=0.6,
+        ),
+        FingerConfig(
+            name="middle",
+            joint_names=joint_order[4:8],
+            modules=[m for m in modules if m.finger == "middle"],
+            normal_force_max=7.5,
+            friction_mu_min=0.35,
+            normal_force_gain=0.6,
+        ),
+        FingerConfig(
+            name="ring",
+            joint_names=joint_order[8:12],
+            modules=[m for m in modules if m.finger == "ring"],
+            normal_force_max=6.0,
+            friction_mu_min=0.35,
+            normal_force_gain=0.6,
+        ),
+        FingerConfig(
+            name="thumb",
+            joint_names=joint_order[12:16],
+            modules=[m for m in modules if m.finger == "thumb"],
+            normal_force_max=8.5,
+            friction_mu_min=0.4,
+            normal_force_gain=0.7,
+        ),
+    ]
 
 # Tangential PID gains per module; tuned conservatively for paper-cup handling.
-DEFAULT_MODULE_GAINS: Dict[str, ControlGains] = {
-    module.name: ControlGains(kp=0.85, ki=1.2, kd=0.02, integral_limit=1.5) for module in DEFAULT_MODULES
-}
+def _default_module_gains(modules: Sequence[ModuleConfig]) -> Dict[str, ControlGains]:
+    return {
+        module.name: ControlGains(kp=0.85, ki=1.2, kd=0.02, integral_limit=1.5)
+        for module in modules
+    }
 
 
-def _torque_map(default: float) -> Dict[str, float]:
-    return {name: default for name in DEFAULT_JOINT_ORDER}
+def _torque_map(default: float, joint_order: Sequence[str]) -> Dict[str, float]:
+    return {name: default for name in joint_order}
 
 
-DEFAULT_TORQUE_CONSTANTS: Dict[str, float] = {
-    # Nm per ampere; placeholder values that need to be replaced with measured data.
-    **_torque_map(0.12)
-}
-
-DEFAULT_CURRENT_LIMITS: Dict[str, float] = {
-    name: 3.0 for name in DEFAULT_JOINT_ORDER
-}
-
-DEFAULT_PREGRASP_JOINT_TARGETS: List[float] = [0, math.pi / 180 * 50.0, math.pi / 180 * 50.0, 0, 
+DEFAULT_PREGRASP_JOINT_TARGETS: List[float] = [0, math.pi / 180 * 50.0, math.pi / 180 * 50.0, 0,
                    0, math.pi / 180 * 50.0, math.pi / 180 * 50.0, 0, 
                    0, math.pi / 180 * 50.0, math.pi / 180 * 50.0, 0, 
-                   -math.pi / 180 * 15.0, math.pi / 180 * 70.0, math.pi / 180 * 50.0, math.pi / 180 * 40.0]
+                   -math.pi / 180 * 15.0, math.pi / 180 * 85.0, math.pi / 180 * 50.0, math.pi / 180 * 40.0]
 
 DEFAULT_INITIAL_JOINT_TARGETS: List[float] = [
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 0, 0,
-    0, math.pi / 180 * 70.0, 0, 0,
+    0, math.pi / 180 * 85.0, 0, 0,
 ]
 
 
@@ -198,12 +227,25 @@ def build_default_config() -> ShearControllerConfig:
         ShearControllerConfig: aggregated defaults ready for consumption.
     """
 
+    hand = os.environ.get("DEXH13_HAND", "right").lower()
+    if "left" in hand:
+        joint_order = LEFT_JOINT_ORDER
+        modules = LEFT_MODULES
+    else:
+        joint_order = RIGHT_JOINT_ORDER
+        modules = RIGHT_MODULES
+
+    finger_configs = _build_finger_configs(joint_order, modules)
+    module_gains = _default_module_gains(modules)
+    torque_constants = _torque_map(0.12, joint_order)
+    current_limits = {name: 3.0 for name in joint_order}
+
     return ShearControllerConfig(
-        joint_order=tuple(DEFAULT_JOINT_ORDER),
-        finger_configs=tuple(DEFAULT_FINGER_CONFIGS),
-        module_gains={k: v for k, v in DEFAULT_MODULE_GAINS.items()},
-        torque_constants={k: v for k, v in DEFAULT_TORQUE_CONSTANTS.items()},
-        current_limits={k: v for k, v in DEFAULT_CURRENT_LIMITS.items()},
+        joint_order=tuple(joint_order),
+        finger_configs=tuple(finger_configs),
+        module_gains=module_gains,
+        torque_constants=torque_constants,
+        current_limits=current_limits,
         pregrasp_joint_targets=tuple(DEFAULT_PREGRASP_JOINT_TARGETS),
         initial_joint_targets=tuple(DEFAULT_INITIAL_JOINT_TARGETS),
     )
@@ -214,12 +256,10 @@ __all__ = [
     "FingerConfig",
     "ControlGains",
     "ShearControllerConfig",
-    "DEFAULT_JOINT_ORDER",
-    "DEFAULT_MODULES",
-    "DEFAULT_FINGER_CONFIGS",
-    "DEFAULT_MODULE_GAINS",
-    "DEFAULT_TORQUE_CONSTANTS",
-    "DEFAULT_CURRENT_LIMITS",
+    "RIGHT_JOINT_ORDER",
+    "RIGHT_MODULES",
+    "LEFT_JOINT_ORDER",
+    "LEFT_MODULES",
     "DEFAULT_PREGRASP_JOINT_TARGETS",
     "DEFAULT_INITIAL_JOINT_TARGETS",
     "build_default_config",

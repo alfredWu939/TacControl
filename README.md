@@ -41,6 +41,8 @@ python scripts/run_shear_control.py \
 
 While the script is running it prints the 11 tactile modules every 0.5 s (already scaled to newtons).  Press `Ctrl+C` to stop; the background SDK process is shut down automatically.
 
+> **Left-hand support** – set the environment variable `DEXH13_HAND=left` (and pass the left-hand URDF via `--urdf`) to automatically use the left-hand joint/tactile ordering.
+
 ### Customising / Tuning
 
 * **Pre-grasp / initial pose** – `DEFAULT_INITIAL_JOINT_TARGETS` and `DEFAULT_PREGRASP_JOINT_TARGETS` in `src/tacctrl/config.py` define the thumb-opposition posture followed by the slow closure.

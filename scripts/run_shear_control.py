@@ -17,24 +17,30 @@ def _ensure_src_on_path() -> None:
 
 _ensure_src_on_path()
 
-from pxdex.dh13 import ControlMode
+import os
+
 import numpy as np
+from pxdex.dh13 import ControlMode
 
 from tacctrl.config import ShearControllerConfig, build_default_config
 from tacctrl.control.shear import ShearGraspController
 from tacctrl.hardware import RealPxDH13
 from tacctrl.kinematics.dexh13_hand import DexH13HandModel
 
-DEFAULT_URDF = Path("robot_description/xarm_paxini/hands/paxini_hand/dexh13_hand_right_description.urdf")
+def _default_urdf(hand: str) -> Path:
+    suffix = "left" if hand == "left" else "right"
+    return Path(
+        f"robot_description/xarm_paxini/hands/paxini_hand/dexh13_hand_{suffix}_description.urdf"
+    )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the shear-based grasp controller on a Paxini DexH13 hand.",
     )
-    parser.add_argument("--hand-tty", default="/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_ATDHb114J19-if00-port0", help="DexH13 serial port.")
+    parser.add_argument("--hand", choices=["right", "left"], default="left", help="DexH13 hand (right/left).")
+    parser.add_argument("--hand-tty", default="/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_BKDVb114J19-if00-port0", help="DexH13 serial port.") # usb-Prolific_Technology_Inc._USB-Serial_Controller_ATDHb114J19-if00-port0
     parser.add_argument("--camera-port", default="/dev/video0", help="Camera port required by the SDK handshake.")
-    parser.add_argument("--urdf", default=str(DEFAULT_URDF), help="Path to the DexH13 hand URDF.")
     parser.add_argument("--rate-hz", type=float, default=150.0, help="Controller update frequency.")
     parser.add_argument("--driver-rate-hz", type=float, default=200.0, help="Background driver refresh rate.")
     parser.add_argument("--warmup", type=float, default=0.5, help="Seconds to wait before closing the loop.")
@@ -48,9 +54,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
+    os.environ["DEXH13_HAND"] = args.hand.lower()
 
     config: ShearControllerConfig = build_default_config()
-    urdf_path = Path(args.urdf).expanduser().resolve()
+    urdf_path = _default_urdf(args.hand).expanduser().resolve()
     if not urdf_path.exists():
         raise FileNotFoundError(f"URDF not found: {urdf_path}")
 
