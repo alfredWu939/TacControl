@@ -71,7 +71,7 @@ class ShearControllerConfig:
     normal_force_backoff: float = 0.1
     contact_force_threshold: float = 0.1
     gravity_compensation: bool = False
-    finger_contact_force_threshold: float = 0.6
+    finger_contact_force_threshold: float = 0.15
     pregrasp_joint_targets: Sequence[float] = ()
     pregrasp_tolerance: float = 0.02
     pregrasp_kp: float = 0.8
